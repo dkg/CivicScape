@@ -3,19 +3,19 @@
 ## What is this page?
 CivicScape is dedicated to using data and the best science available to help police increase both the safety and trust of the communities they serve. A key component of this commitment is making our analysis open and transparent, to enable trust and encourage constructive scrutiny where we can do better. CivicScape is the only product with this level of transparency and accuracy.
 
-Our methodology and code are available here on our Github page. To understand our analytics you can follow the steps in our code READme. We invite and encourage feedback on the model and process at any stage. You can weigh in here. 
+Our methodology and code are available here on our Github page. To understand our analytics you can follow the steps in our Training_and_Testing code and accompanying README. We invite and encourage feedback on the model and process at any stage. You can weigh in here. 
 
 We also share our interactive iPython Notebooks, where we aim to make it easy for you to find answers to the following questions: 
 
-### How does CivicScape evaluate data used in our models for missing information? See our Data Input Audit Notebook. 
-### How does CivicScape evaluate the accuracy of the models deployed? See our Model Metrics Notebook 
-### How does CivicScape make police more efficient? See our Police Deployment Notebook
-### How does CivicScape think about preventing bias in crime data and models? See our Bias in Crime Data Notebook
+##### How does CivicScape evaluate data used in our models for missing information? See our Data Input Audit Notebook. 
+##### How does CivicScape evaluate the accuracy of the models deployed? See our Model Metrics Notebook 
+##### How does CivicScape make police more efficient? See our Police Deployment Notebook
+##### How does CivicScape think about preventing bias in crime data and models? See our Bias in Crime Data Notebook
 
 ## Data
 CivicScape generates its risk assessments using data that is open and available to the public whenever possible. Though some jurisdictions choose to not make their crime data publicly available, all CivicScape data sources that are public can be accessed below:
 
-### Dataset; Variables used; Source
+#### Example Dataset; Variables used; Source
 
 Recent Crime Activity; Violent Crime: Robbery, assault, homicide, shooting events comprise violent crime. Property crime: motor vehicle theft and burglary; Open data portals by city; crime data provided by jurisdictions.
 
