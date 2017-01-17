@@ -37,6 +37,7 @@ Our audits of all input data can be replicated by running our Data Input Audit N
 Currently, CivicScape uses an ensemble of feed-forward neural network models tuned to the specific nature of crime data to understand patterns of crime across a city over time. Every model generates risk assessments for every area (roughly 3 block radius) of a jurisdiction at any a given hour, updated regularly based on slightly different initial conditions. The final risk assessment for each area that we use in CivicScape is a weighted average based on recent historical performance. A patent is pending on this work.
 
 Our model differs from previous crime models in several key ways:
+
 1. We focus our model on the information most useful for deployment. CivicScape calculates not just the absolute chance of crime, but the relative chance for a given area at a given time compared to the rest of the city, so that officers are able to easily understand how to act on the information in real time.
 
 1. CivicScape analytics are trained to recognize how quickly the landscape can change. Our model has the unique capacity to analyze changes in crime risk through time, from one hour to the next. This is in part because we leverage information on how changes in the environment over a specific time period, such as the speed of changes in temperature, can impact the risk at any given area of the city.
