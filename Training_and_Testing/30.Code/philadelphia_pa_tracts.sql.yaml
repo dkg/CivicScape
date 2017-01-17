@@ -1,0 +1,7 @@
+
+
+select ct.tractce as census_tra
+from census_tracts ct
+
+order by 1
+

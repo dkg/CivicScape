@@ -1,0 +1,28 @@
+#!/bin/bash
+
+blob={{blob}}
+
+# DATAPATH={{DATAPATH}}
+# MODELPATH={{MODELPATH}}
+
+# Default paths to use the current directory
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DATAPATH=$DIR
+MODELPATH=$DIR
+log=$DIR/driver.log
+
+echo "DATAPATH: $DATAPATH"
+echo "DATAPATH: $DATAPATH" >> $log
+
+mkdir -p $MODELPATH
+
+numOfHiddenNode={{R_NNET_HIDDEN_NODE_COUNT}}
+numOfIterations={{R_NNET_ITER_COUNT}}
+i={{model_number}}
+
+r_script="$DIR/trainNN.R"
+# rm -f $cmd_file
+
+train_csv=$DATAPATH/{{city}}_train_data.$i.binned.csv
+
+Rscript $r_script "crime_count" $train_csv $MODELPATH $i $numOfHiddenNode $numOfIterations {{r_script_blob_param}}

@@ -1,0 +1,536 @@
+with crime_ones AS (
+  select c.cell_id, date_trunc('hour',c.hr) as hr, SUM(COALESCE(  {{crime_sql}}  ,0)) as crime_count
+  from crime c
+    INNER JOIN weather w ON date_trunc('hour',c.hr) = w.hr
+  where c.hr between {{start_date_sql}}::timestamp and {{end_date_sql}}::timestamp
+  and c.cell_id is not null
+  and {{crime_sql}} > 0   
+  group by date_trunc('hour',c.hr), c.cell_id
+),
+crime_zero_oversample_size AS (
+  select c.cell_id, hourstart_series as hr, 0 as crime_count
+  from cell_census_tract_bins c
+  INNER JOIN generate_series 
+    ( {{start_date_sql}} ::timestamp 
+    , {{end_date_sql}} ::timestamp
+    , '1 hour' ::interval) hourstart_series on 1=1
+  INNER JOIN weather w ON hourstart_series = w.hr
+  order by random()
+  limit (select 3 * count(1) from crime_ones)
+),
+crime_zeroes AS (
+  select z.*
+  from crime_zero_oversample_size z
+  where (z.cell_id, z.hr) not in (select cell_id, hr from crime_ones) 
+  order by random()
+  limit (select count(1) from crime_ones)
+),
+crime_balanced AS (
+  select * from crime_ones
+  union all
+  select * from crime_zeroes
+),
+
+crime_all AS (
+
+    select c.cell_id, hr_ser as hr, SUM(COALESCE(  {{crime_sql}}  ,0)) as crime_count
+    
+    from cell_census_tract_bins c
+    INNER JOIN generate_series 
+    ( {{start_date_sql}} ::timestamp 
+    , {{end_date_sql}} ::timestamp
+    , '1 hour' ::interval) hr_ser on 1=1
+    left join crime cr
+        on c.cell_id = cr.cell_id and hr_ser = cr.hr
+    group by c.cell_id, hr_ser
+),
+
+weather_deltas AS (
+  select ts.ts as hr
+  , LAG(w.drybulb_fahrenheit, 24*1) OVER( order by ts.ts) as dod1_drybulb_fahrenheit
+  , LAG(w.drybulb_fahrenheit, 24*2) OVER( order by ts.ts) as dod2_drybulb_fahrenheit
+  , LAG(w.drybulb_fahrenheit, 24*3) OVER( order by ts.ts) as dod3_drybulb_fahrenheit
+  , LAG(w.drybulb_fahrenheit, 24*7*1) OVER( order by ts.ts) as wow1_drybulb_fahrenheit
+  , LAG(w.drybulb_fahrenheit, 24*7*2) OVER( order by ts.ts) as wow2_drybulb_fahrenheit
+  from generate_series 
+    ( {{start_date_sql}}::timestamp - INTERVAL '2 week'
+    , {{end_date_sql}}::timestamp
+    , '1 hour' ::interval) as ts
+  left join weather w on ts.ts = w.hr
+),
+hour_prec_history AS (
+ select hourstart_series2
+  , sum (
+    case when w.hr between hourstart_series2 - INTERVAL '1 day' and hourstart_series2 then 1 else 0 end
+    ) as precip_hour_cnt_in_last_1_day
+  , sum (
+    case when w.hr between hourstart_series2 - INTERVAL '3 day' and hourstart_series2 then 1 else 0 end
+    ) as precip_hour_cnt_in_last_3_day
+  , sum (
+    case when w.hr between hourstart_series2 - INTERVAL '1 week' and hourstart_series2 then 1 else 0 end
+    ) as precip_hour_cnt_in_last_1_week
+  , EXTRACT(EPOCH FROM hourstart_series2 - max(w.hr))/3600 as hour_count_since_precip
+  from generate_series ( 
+      {{start_date_sql}} ::timestamp
+      , {{end_date_sql}} ::timestamp
+      , '1 hour' ::interval) hourstart_series2
+  inner join weather w on w.hr between hourstart_series2 - INTERVAL '8 week' and hourstart_series2
+  where w.hourly_precip > 0
+  group by hourstart_series2
+),
+crime_prec_history AS (
+   select s.cell_id, s.hr, coalesce(c.crime_count,0) as crime_count
+    , coalesce(sum(c.crime_count) OVER (
+        PARTITION BY s.cell_id ORDER BY s.hr asc
+        ROWS BETWEEN 48 PRECEDING AND 25 PRECEDING
+        ), 0) as crime_cnt_in_last_1_day
+    , coalesce(sum(c.crime_count) OVER (
+        PARTITION BY s.cell_id ORDER BY s.hr asc
+        ROWS BETWEEN 72 PRECEDING AND 25 PRECEDING
+        ),0) as crime_cnt_in_last_3_day
+  from 
+  (
+    select c.cell_id, hourstart_series3 as hr
+ 	from generate_series (   {{start_date_sql}} ::timestamp , {{end_date_sql}} ::timestamp , '1 hour' ::interval) hourstart_series3
+    cross join cells c 
+  ) s
+  left join 
+  (
+      select cell_id, date_trunc('hour',hr) as hr, sum({{crime_sql}}) as crime_count
+      from crime c 
+      where c.hr between {{start_date_sql}}::timestamp - INTERVAL '3 day' and  {{end_date_sql}}::timestamp
+      group by cell_id, date_trunc('hour',hr)
+      order by date_trunc('hour',hr)
+  ) c
+    on s.cell_id = c.cell_id and s.hr = c.hr
+)
+SELECT 
+c.cell_id, 
+cast(c.hr as date) as dt, 
+COALESCE(c.crime_count,0) as crime_count,
+-1 as placeholder_1,
+-1 as placeholder_2,
+
+date_part('year', c.hr)as year,
+date_part('hour', c.hr)as hournumber,
+w.*,
+wd.dod1_drybulb_fahrenheit,
+wd.dod2_drybulb_fahrenheit,
+wd.dod3_drybulb_fahrenheit,
+wd.wow1_drybulb_fahrenheit,
+wd.wow2_drybulb_fahrenheit,
+hour_prec_history.precip_hour_cnt_in_last_1_day,
+hour_prec_history.precip_hour_cnt_in_last_3_day,
+hour_prec_history.precip_hour_cnt_in_last_1_week,
+hour_prec_history.hour_count_since_precip,
+date_part('month', c.hr)as month_of_year,
+extract(DOW FROM c.hr)as day_of_week,
+
+crime_prec_history.crime_cnt_in_last_1_day, 
+crime_prec_history.crime_cnt_in_last_3_day
+
+
+/*note that monday is 1*/
+/* generate these from ${city}_cell_setup.sql */
+, ct_bins.census_tra_000100    
+, ct_bins.census_tra_000200    
+, ct_bins.census_tra_000300    
+, ct_bins.census_tra_000401    
+, ct_bins.census_tra_000402    
+, ct_bins.census_tra_000500    
+, ct_bins.census_tra_000600    
+, ct_bins.census_tra_000700    
+, ct_bins.census_tra_000801    
+, ct_bins.census_tra_000803    
+, ct_bins.census_tra_000804    
+, ct_bins.census_tra_000901    
+, ct_bins.census_tra_000902    
+, ct_bins.census_tra_001001    
+, ct_bins.census_tra_001002    
+, ct_bins.census_tra_001101    
+, ct_bins.census_tra_001102    
+, ct_bins.census_tra_001201    
+, ct_bins.census_tra_001202    
+, ct_bins.census_tra_001300    
+, ct_bins.census_tra_001400    
+, ct_bins.census_tra_001500    
+, ct_bins.census_tra_001600    
+, ct_bins.census_tra_001700    
+, ct_bins.census_tra_001800    
+, ct_bins.census_tra_001900    
+, ct_bins.census_tra_002000    
+, ct_bins.census_tra_002100    
+, ct_bins.census_tra_002200    
+, ct_bins.census_tra_002300    
+, ct_bins.census_tra_002400    
+, ct_bins.census_tra_002500    
+, ct_bins.census_tra_002701    
+, ct_bins.census_tra_002702    
+, ct_bins.census_tra_002801    
+, ct_bins.census_tra_002802    
+, ct_bins.census_tra_002900    
+, ct_bins.census_tra_003001    
+, ct_bins.census_tra_003002    
+, ct_bins.census_tra_003100    
+, ct_bins.census_tra_003200    
+, ct_bins.census_tra_003300    
+, ct_bins.census_tra_003600    
+, ct_bins.census_tra_003701    
+, ct_bins.census_tra_003702    
+, ct_bins.census_tra_003800    
+, ct_bins.census_tra_003901    
+, ct_bins.census_tra_003902    
+, ct_bins.census_tra_004001    
+, ct_bins.census_tra_004002    
+, ct_bins.census_tra_004101    
+, ct_bins.census_tra_004102    
+, ct_bins.census_tra_004201    
+, ct_bins.census_tra_004202    
+, ct_bins.census_tra_005000    
+, ct_bins.census_tra_005400    
+, ct_bins.census_tra_005500    
+, ct_bins.census_tra_005600    
+, ct_bins.census_tra_006000    
+, ct_bins.census_tra_006100    
+, ct_bins.census_tra_006200    
+, ct_bins.census_tra_006300    
+, ct_bins.census_tra_006400    
+, ct_bins.census_tra_006500    
+, ct_bins.census_tra_006600    
+, ct_bins.census_tra_006700    
+, ct_bins.census_tra_006900    
+, ct_bins.census_tra_007000    
+, ct_bins.census_tra_007101    
+, ct_bins.census_tra_007102    
+, ct_bins.census_tra_007200    
+, ct_bins.census_tra_007300    
+, ct_bins.census_tra_007400    
+, ct_bins.census_tra_007700    
+, ct_bins.census_tra_007800    
+, ct_bins.census_tra_007900    
+, ct_bins.census_tra_008000    
+, ct_bins.census_tra_008101    
+, ct_bins.census_tra_008102    
+, ct_bins.census_tra_008200    
+, ct_bins.census_tra_008301    
+, ct_bins.census_tra_008302    
+, ct_bins.census_tra_008400    
+, ct_bins.census_tra_008500    
+, ct_bins.census_tra_008601    
+, ct_bins.census_tra_008602    
+, ct_bins.census_tra_008701    
+, ct_bins.census_tra_008702    
+, ct_bins.census_tra_008801    
+, ct_bins.census_tra_008802    
+, ct_bins.census_tra_009000    
+, ct_bins.census_tra_009100    
+, ct_bins.census_tra_009200    
+, ct_bins.census_tra_009300    
+, ct_bins.census_tra_009400    
+, ct_bins.census_tra_009500    
+, ct_bins.census_tra_009600    
+, ct_bins.census_tra_009801    
+, ct_bins.census_tra_009802    
+, ct_bins.census_tra_010000    
+, ct_bins.census_tra_010100    
+, ct_bins.census_tra_010200    
+, ct_bins.census_tra_010300    
+, ct_bins.census_tra_010400    
+, ct_bins.census_tra_010500    
+, ct_bins.census_tra_010600    
+, ct_bins.census_tra_010700    
+, ct_bins.census_tra_010800    
+, ct_bins.census_tra_010900    
+, ct_bins.census_tra_011000    
+, ct_bins.census_tra_011100    
+, ct_bins.census_tra_011200    
+, ct_bins.census_tra_011300    
+, ct_bins.census_tra_011400    
+, ct_bins.census_tra_011500    
+, ct_bins.census_tra_011700    
+, ct_bins.census_tra_011800    
+, ct_bins.census_tra_011900    
+, ct_bins.census_tra_012000    
+, ct_bins.census_tra_012100    
+, ct_bins.census_tra_012201    
+, ct_bins.census_tra_012203    
+, ct_bins.census_tra_012204    
+, ct_bins.census_tra_012500    
+, ct_bins.census_tra_013100    
+, ct_bins.census_tra_013200    
+, ct_bins.census_tra_013300    
+, ct_bins.census_tra_013401    
+, ct_bins.census_tra_013402    
+, ct_bins.census_tra_013500    
+, ct_bins.census_tra_013601    
+, ct_bins.census_tra_013602    
+, ct_bins.census_tra_013700    
+, ct_bins.census_tra_013800    
+, ct_bins.census_tra_013900    
+, ct_bins.census_tra_014000    
+, ct_bins.census_tra_014100    
+, ct_bins.census_tra_014200    
+, ct_bins.census_tra_014300    
+, ct_bins.census_tra_014400    
+, ct_bins.census_tra_014500    
+, ct_bins.census_tra_014600    
+, ct_bins.census_tra_014700    
+, ct_bins.census_tra_014800    
+, ct_bins.census_tra_014900    
+, ct_bins.census_tra_015101    
+, ct_bins.census_tra_015102    
+, ct_bins.census_tra_015200    
+, ct_bins.census_tra_015300    
+, ct_bins.census_tra_015600    
+, ct_bins.census_tra_015700    
+, ct_bins.census_tra_015800    
+, ct_bins.census_tra_016000    
+, ct_bins.census_tra_016100    
+, ct_bins.census_tra_016200    
+, ct_bins.census_tra_016300    
+, ct_bins.census_tra_016400    
+, ct_bins.census_tra_016500    
+, ct_bins.census_tra_016600    
+, ct_bins.census_tra_016701    
+, ct_bins.census_tra_016702    
+, ct_bins.census_tra_016800    
+, ct_bins.census_tra_016901    
+, ct_bins.census_tra_016902    
+, ct_bins.census_tra_017000    
+, ct_bins.census_tra_017100    
+, ct_bins.census_tra_017201    
+, ct_bins.census_tra_017202    
+, ct_bins.census_tra_017300    
+, ct_bins.census_tra_017400    
+, ct_bins.census_tra_017500    
+, ct_bins.census_tra_017601    
+, ct_bins.census_tra_017602    
+, ct_bins.census_tra_017701    
+, ct_bins.census_tra_017702    
+, ct_bins.census_tra_017800    
+, ct_bins.census_tra_017900    
+, ct_bins.census_tra_018001    
+, ct_bins.census_tra_018002    
+, ct_bins.census_tra_018300    
+, ct_bins.census_tra_018400    
+, ct_bins.census_tra_018800    
+, ct_bins.census_tra_019000    
+, ct_bins.census_tra_019100    
+, ct_bins.census_tra_019200    
+, ct_bins.census_tra_019501    
+, ct_bins.census_tra_019502    
+, ct_bins.census_tra_019700    
+, ct_bins.census_tra_019800    
+, ct_bins.census_tra_019900    
+, ct_bins.census_tra_020000    
+, ct_bins.census_tra_020101    
+, ct_bins.census_tra_020102    
+, ct_bins.census_tra_020200    
+, ct_bins.census_tra_020300    
+, ct_bins.census_tra_020400    
+, ct_bins.census_tra_020500    
+, ct_bins.census_tra_020600    
+, ct_bins.census_tra_020700    
+, ct_bins.census_tra_020800    
+, ct_bins.census_tra_020900    
+, ct_bins.census_tra_021000    
+, ct_bins.census_tra_021100    
+, ct_bins.census_tra_021200    
+, ct_bins.census_tra_021300    
+, ct_bins.census_tra_021400    
+, ct_bins.census_tra_021500    
+, ct_bins.census_tra_021600    
+, ct_bins.census_tra_021700    
+, ct_bins.census_tra_021800    
+, ct_bins.census_tra_021900    
+, ct_bins.census_tra_022000    
+, ct_bins.census_tra_023100    
+, ct_bins.census_tra_023500    
+, ct_bins.census_tra_023600    
+, ct_bins.census_tra_023700    
+, ct_bins.census_tra_023800    
+, ct_bins.census_tra_023900    
+, ct_bins.census_tra_024000    
+, ct_bins.census_tra_024100    
+, ct_bins.census_tra_024200    
+, ct_bins.census_tra_024300    
+, ct_bins.census_tra_024400    
+, ct_bins.census_tra_024500    
+, ct_bins.census_tra_024600    
+, ct_bins.census_tra_024700    
+, ct_bins.census_tra_024800    
+, ct_bins.census_tra_024900    
+, ct_bins.census_tra_025200    
+, ct_bins.census_tra_025300    
+, ct_bins.census_tra_025400    
+, ct_bins.census_tra_025500    
+, ct_bins.census_tra_025600    
+, ct_bins.census_tra_025700    
+, ct_bins.census_tra_025800    
+, ct_bins.census_tra_025900    
+, ct_bins.census_tra_026000    
+, ct_bins.census_tra_026100    
+, ct_bins.census_tra_026200    
+, ct_bins.census_tra_026301    
+, ct_bins.census_tra_026302    
+, ct_bins.census_tra_026400    
+, ct_bins.census_tra_026500    
+, ct_bins.census_tra_026600    
+, ct_bins.census_tra_026700    
+, ct_bins.census_tra_026800    
+, ct_bins.census_tra_026900    
+, ct_bins.census_tra_027000    
+, ct_bins.census_tra_027100    
+, ct_bins.census_tra_027200    
+, ct_bins.census_tra_027300    
+, ct_bins.census_tra_027401    
+, ct_bins.census_tra_027402    
+, ct_bins.census_tra_027500    
+, ct_bins.census_tra_027600    
+, ct_bins.census_tra_027700    
+, ct_bins.census_tra_027800    
+, ct_bins.census_tra_027901    
+, ct_bins.census_tra_027902    
+, ct_bins.census_tra_028000    
+, ct_bins.census_tra_028100    
+, ct_bins.census_tra_028200    
+, ct_bins.census_tra_028300    
+, ct_bins.census_tra_028400    
+, ct_bins.census_tra_028500    
+, ct_bins.census_tra_028600    
+, ct_bins.census_tra_028700    
+, ct_bins.census_tra_028800    
+, ct_bins.census_tra_028901    
+, ct_bins.census_tra_028902    
+, ct_bins.census_tra_029000    
+, ct_bins.census_tra_029100    
+, ct_bins.census_tra_029200    
+, ct_bins.census_tra_029300    
+, ct_bins.census_tra_029400    
+, ct_bins.census_tra_029800    
+, ct_bins.census_tra_029900    
+, ct_bins.census_tra_030000    
+, ct_bins.census_tra_030100    
+, ct_bins.census_tra_030200    
+, ct_bins.census_tra_030501    
+, ct_bins.census_tra_030502    
+, ct_bins.census_tra_030600    
+, ct_bins.census_tra_030700    
+, ct_bins.census_tra_030800    
+, ct_bins.census_tra_030900    
+, ct_bins.census_tra_031000    
+, ct_bins.census_tra_031101    
+, ct_bins.census_tra_031102    
+, ct_bins.census_tra_031200    
+, ct_bins.census_tra_031300    
+, ct_bins.census_tra_031401    
+, ct_bins.census_tra_031402    
+, ct_bins.census_tra_031501    
+, ct_bins.census_tra_031502    
+, ct_bins.census_tra_031600    
+, ct_bins.census_tra_031700    
+, ct_bins.census_tra_031800    
+, ct_bins.census_tra_031900    
+, ct_bins.census_tra_032000    
+, ct_bins.census_tra_032100    
+, ct_bins.census_tra_032300    
+, ct_bins.census_tra_032500    
+, ct_bins.census_tra_032600    
+, ct_bins.census_tra_032900    
+, ct_bins.census_tra_033000    
+, ct_bins.census_tra_033101    
+, ct_bins.census_tra_033102    
+, ct_bins.census_tra_033200    
+, ct_bins.census_tra_033300    
+, ct_bins.census_tra_033400    
+, ct_bins.census_tra_033500    
+, ct_bins.census_tra_033600    
+, ct_bins.census_tra_033701    
+, ct_bins.census_tra_033702    
+, ct_bins.census_tra_033800    
+, ct_bins.census_tra_033900    
+, ct_bins.census_tra_034000    
+, ct_bins.census_tra_034100    
+, ct_bins.census_tra_034200    
+, ct_bins.census_tra_034400    
+, ct_bins.census_tra_034501    
+, ct_bins.census_tra_034502    
+, ct_bins.census_tra_034600    
+, ct_bins.census_tra_034701    
+, ct_bins.census_tra_034702    
+, ct_bins.census_tra_034801    
+, ct_bins.census_tra_034802    
+, ct_bins.census_tra_034803    
+, ct_bins.census_tra_034900    
+, ct_bins.census_tra_035100    
+, ct_bins.census_tra_035200    
+, ct_bins.census_tra_035301    
+, ct_bins.census_tra_035302    
+, ct_bins.census_tra_035500    
+, ct_bins.census_tra_035601    
+, ct_bins.census_tra_035602    
+, ct_bins.census_tra_035701    
+, ct_bins.census_tra_035702    
+, ct_bins.census_tra_035800    
+, ct_bins.census_tra_035900    
+, ct_bins.census_tra_036000    
+, ct_bins.census_tra_036100    
+, ct_bins.census_tra_036201    
+, ct_bins.census_tra_036202    
+, ct_bins.census_tra_036203    
+, ct_bins.census_tra_036301    
+, ct_bins.census_tra_036302    
+, ct_bins.census_tra_036303    
+, ct_bins.census_tra_036400    
+, ct_bins.census_tra_036501    
+, ct_bins.census_tra_036502    
+, ct_bins.census_tra_036600    
+, ct_bins.census_tra_036700    
+, ct_bins.census_tra_036900    
+, ct_bins.census_tra_037200    
+, ct_bins.census_tra_037300    
+, ct_bins.census_tra_037500    
+, ct_bins.census_tra_037600    
+, ct_bins.census_tra_037700    
+, ct_bins.census_tra_037800    
+, ct_bins.census_tra_037900    
+, ct_bins.census_tra_038000    
+, ct_bins.census_tra_038100    
+, ct_bins.census_tra_038200    
+, ct_bins.census_tra_038300    
+, ct_bins.census_tra_038400    
+, ct_bins.census_tra_038500    
+, ct_bins.census_tra_038600    
+, ct_bins.census_tra_038700    
+, ct_bins.census_tra_038800    
+, ct_bins.census_tra_038900    
+, ct_bins.census_tra_039000    
+, ct_bins.census_tra_980000    
+, ct_bins.census_tra_980100    
+, ct_bins.census_tra_980200    
+, ct_bins.census_tra_980300    
+, ct_bins.census_tra_980400    
+, ct_bins.census_tra_980500    
+, ct_bins.census_tra_980600    
+, ct_bins.census_tra_980700    
+, ct_bins.census_tra_980800    
+, ct_bins.census_tra_980900    
+, ct_bins.census_tra_989100    
+
+
+FROM 
+{{ crime_data_set }} c
+left join cell_census_tract_bins ct_bins
+    on c.cell_id = ct_bins.cell_id
+
+INNER JOIN weather w ON c.hr = w.hr
+LEFT JOIN weather_deltas wd ON c.hr = wd.hr
+
+left join hour_prec_history
+  on c.hr = hour_prec_history.hourstart_series2
+
+left join crime_prec_history
+  on c.hr = crime_prec_history.hr
+  and c.cell_id = crime_prec_history.cell_id
+
+
