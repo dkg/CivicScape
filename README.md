@@ -38,8 +38,11 @@ Currently, CivicScape uses an ensemble of feed-forward neural network models tun
 
 Our model differs from previous crime models in several key ways:
 1. We focus our model on the information most useful for deployment. CivicScape calculates not just the absolute chance of crime, but the relative chance for a given area at a given time compared to the rest of the city, so that officers are able to easily understand how to act on the information in real time.
+
 1. CivicScape analytics are trained to recognize how quickly the landscape can change. Our model has the unique capacity to analyze changes in crime risk through time, from one hour to the next. This is in part because we leverage information on how changes in the environment over a specific time period, such as the speed of changes in temperature, can impact the risk at any given area of the city.
+
 1. We employ cutting edge science to manage the sparsity of crime events. In the eyes of an analyst, crime is a relatively rare event, and the model used to analyze it should be specifically tuned to this fact in order to perform accurately. CivicScape creates a dataset with a more balanced distribution of instances of crime and no-crime to allow for better understanding of the conditions under which crime does occur. This technique of decreasing the sampling rate of no-crime occurrences at an optimal rate is called sometimes called “downsampling”. 
+
 1. CivicScape models only use reliable raw data. Alongside our input data evaluation that checks for missing or biased data outlined in our code supplied, the model also employs numerous random subsets of the crime data that are then each trained in a separate neural network. This decreases the influence that problematic outliers or errors in the raw data may have on the neural network performance. 
 
 #### Model Evaluation Metrics Notebook: How do CivicScape Models perform? 
