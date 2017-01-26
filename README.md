@@ -1,7 +1,7 @@
 # Understanding the CivicScape data and model
 
 ## What is this page?
-CivicScape is dedicated to using data and the best science available to help police increase both the safety and trust of the communities they serve. A key component of this commitment is making our analysis open and transparent, to enable trust and encourage constructive scrutiny where we can do better. CivicScape is the only product with this level of transparency and accuracy.
+CivicScape is dedicated to using data and evidence-based research to help police increase both the safety and trust of the communities they serve. A key component of this commitment is making our analysis open and transparent, to enable trust and encourage constructive scrutiny where we can do better. CivicScape is the only product with this level of transparency and accuracy.
 
 Our methodology and code are available here on our Github page. To understand our analytics you can follow the steps in our Training_and_Testing code and accompanying README. We invite and encourage feedback on the model and process at any stage. You can weigh in here. 
 
