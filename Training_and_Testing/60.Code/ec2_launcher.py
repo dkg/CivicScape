@@ -45,8 +45,11 @@ def getInstanceSize(city, crime):
     
     if city == 'philadelphia_pa':
         size = 'r3.large'
-    else:
-        size = 't2.small'
+
+    elif city == 'chicago_il': 
+        size = 'r3.large'
+
+    else: 't2.large'
         
     print("Spawning " + size)
     return size
