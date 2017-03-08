@@ -7,7 +7,6 @@ import sys
 import boto3
 # PUPPET_SOURCE = 'https://bitbucket.org/rimey/hello-ec2-puppetboot.git'
 
-# PUPPET_SOURCE = 'git@bitbucket.org:jeffscott2/mindgrapes/wc-puppet.git'
 PUPPET_SOURCE = 'git@bitbucket.org:mindgrapes/wc-puppet.git'
 keys="60.Code/"
 code="120.Code/"
