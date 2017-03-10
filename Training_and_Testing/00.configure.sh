@@ -43,6 +43,20 @@ export WC_TEST_END="'2016-12-31'"
 export R_NNET_HIDDEN_NODE_COUNT=35
 export R_NNET_ITER_COUNT=100
 
+# chicago
+export WC_CITY="chicago_il"
+##export WC_MODEL_COUNT=1
+#export WC_MODEL_COUNT=5
+export WC_MODEL_COUNT=100
+export WC_CRIME="violent"
+export WC_CRIME_SQL="violent_count"
+export WC_TRAIN_START="'2012-01-01'"
+export WC_TRAIN_END="'2015-12-31 23:00:00'"
+export WC_TEST_START="'2016-01-01'"
+export WC_TEST_END="'2016-12-31'"
+export R_NNET_HIDDEN_NODE_COUNT=35
+export R_NNET_ITER_COUNT=100
+
 
 # Dates
 # Dates
