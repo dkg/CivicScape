@@ -8,9 +8,9 @@ Our methodology and code are available here on our Github page. To understand ou
 We also share our interactive iPython Notebooks, where we aim to make it easy for you to find answers to the following questions: 
 
 ##### How does CivicScape evaluate data used in our models for missing information? See our [Data Input Audit Notebook](https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/DataInputsPractices.ipynb). 
-##### How does CivicScape evaluate the accuracy of the models deployed? See our [Model Metrics Notebook] (https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/ModelDataPractices.ipynb). 
-##### How does CivicScape make police more efficient? See our [Police Deployment Notebook] (https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/PoliceDeployment.ipynb).
-##### How does CivicScape think about preventing bias in crime data and models? See our [Bias in Crime Data Notebook] (https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/PreventingBias.ipynb).
+##### How does CivicScape evaluate the accuracy of the models deployed? See our [Model Metrics Notebook](https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/ModelDataPractices.ipynb). 
+##### How does CivicScape make police more efficient? See our [Police Deployment Notebook](https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/PoliceDeployment.ipynb).
+##### How does CivicScape think about preventing bias in crime data and models? See our [Bias in Crime Data Notebook](https://github.com/CivicScape/CivicScape/blob/master/evaluation_notebooks/notebooks/PreventingBias.ipynb).
 
 ## Data
 CivicScape generates its risk assessments using data that is open and available to the public whenever possible. Though some jurisdictions choose to not make their crime data publicly available, all CivicScape data sources that are public can be accessed below:
